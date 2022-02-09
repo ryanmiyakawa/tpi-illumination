@@ -76,7 +76,6 @@ bool isInPrimativeShape(double r, double th, int primativeIdx, double * args){
 
             return square(r*cos(th) - poleOffset) + square(r*sin(th)) < square(poleRadius);
 
-
         case 4: // Leaf Quasar Pole
             deltaSigma = args[0];
             poleRadius = 1;
@@ -91,7 +90,6 @@ bool isInPrimativeShape(double r, double th, int primativeIdx, double * args){
 
             return  square(r*cos(th + M_PI/6) - (2 - deltaSigma)) + square(r*sin(th + M_PI/6)) < square(poleRadius) &&
                     square(r*cos(th - M_PI/6) - (2 - deltaSigma)) + square(r*sin(th - M_PI/6)) < square(poleRadius);
-
     }
     return true;
 }
@@ -105,17 +103,16 @@ bool isInPrimativeShape(double r, double th, int primativeIdx, double * args){
 int generatePrimative(double * x, double * y, double * xBuff, double * yBuff, int numberPoints, int targetPoints, 
                     int primativeIdx, double dl, double * radii, int numRadii, bool useRaster, double * params){
 
-    int numTheta;
-    double radius;
-    double dTh = 0;
-    double theta = 0;
-
-    int count = 0;
+    int     numTheta;
+    double  radius;
+    double  dTh         = 0;
+    double  theta       = 0;
+    int     count       = 0;
 
     for (int k = 0; k < numRadii; k++){
-        // Theta stepsize:
-        dTh = dl/(2*M_PI * radii[k]);
-        numTheta = 2*M_PI / dTh;
+        // Coumpute theta sampling on this ring that keeps dl (tangential length step) fixed
+        dTh         = dl/(2*M_PI * radii[k]);
+        numTheta    = 2*M_PI / dTh;
 
         for (int m = 0; m < numTheta; m++){
             // Reverse scan direction for odd k:
