@@ -9,7 +9,10 @@
  * 
  * Builds illuminations using primative shapes, and then uses a discretized
  * Newton's method (secant solver) to make sure that returned coordiante array
- * lengths match the desired number (default 10,000 points).
+ * lengths match the desired number (default 10,000 points).  Coordinate array
+ * lengths are controlled by adjusting samping along the tangential direction keeping
+ * radial sampling fixed.  Coordinate sampling is chosen to have fixed point density
+ * across the active illumination area in angle space.
  * 
  * Illumination coordinates are written to a text file.
  */
