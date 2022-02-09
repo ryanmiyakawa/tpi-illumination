@@ -1,0 +1,2 @@
+% Load file generated from c++ code
+M = csvread('illumination_coor')
