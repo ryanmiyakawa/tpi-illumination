@@ -136,7 +136,18 @@ int generatePrimative(double * x, double * y, double * xBuff, double * yBuff, in
 
 // Discretized Newton's method for finding optimal theta sampling
 int secantSolvePrimative(double * x, double * y, int numberPoints, int targetPoints, 
-            int primativeIdx, double dlGuess, double * radii, int numRadii, bool useRaster, double * params){
+            int primativeIdx, double radiusWidth, double &drOpt, bool useRaster, double * params){
+
+
+    // Set up R,Th grid:
+    int numRadii = (int) ((1 - radiusWidth)/radiusWidth);
+    double radii[numRadii];
+
+    for (int k = 0; k < numRadii; k++){
+        radii[k] = radiusWidth*(k + 1);
+    }
+
+    double dlGuess = M_PI/ ((double) numberPoints * radiusWidth) * 10;
 
     double tolX = 0.001;
     int maxIter = 50;
@@ -163,12 +174,14 @@ int secantSolvePrimative(double * x, double * y, int numberPoints, int targetPoi
 
         if (abs(S0 - 1/x1) < tolX){
             printf("Secant solve converged in %d iterations \n", currentIter);
-            printf("optimal dl = %0.5f\n", 1/x1);
+            printf("optimal dl = %0.5f\n", x1);
 
             fxm1 = generatePrimative(x, y, xBuff, yBuff, numberPoints, targetPoints, primativeIdx, x1, radii, numRadii, useRaster, params);
 
             printf("Number of points in primative: %d\n", ((int) fxm1 ) + targetPoints);
 
+            // Set dA:
+            drOpt = sqrt(radiusWidth * x1);
 
             return ((int) fxm1 ) + targetPoints;
         }
@@ -235,15 +248,7 @@ void tileAndReconcile(double * x, double * y, int numberPoints,
 // Generates illumination coordinates by building pupil fills from primative shapes that are subsequently tiled and offset/rotated
 void getIlluminationCoordinates(double * x, double * y, int numberPoints, int patternNumber, double * params){
 
-    const double radiusWidth = 0.02;
 
-    // Set up R,Th grid:
-    int numRadii = (int) ((1 - radiusWidth)/radiusWidth);
-    double radii[numRadii];
-
-    for (int k = 0; k < numRadii; k++){
-        radii[k] = radiusWidth*(k + 1);
-    }
 
     int numberPointsPrim = 0;
     int targetPoints;
@@ -252,9 +257,6 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
     double tileAngleSep;
     double tileAngleOffset;
     bool useRaster = true;
-
-    // Estimate dl
-    double dl = M_PI/ (numberPoints * radiusWidth) * 10;
 
     switch(patternNumber){
         case 0: // Circular monopole
@@ -343,14 +345,18 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
         break;
     }
 
-    // Generate primative without optimizing dl
-    //  numberPointsPrim = generatePrimative(x, y, x, y, numberPoints, targetPoints, primativeNumber, dl, 
-    //                                                         radii, numRadii, useRaster, params );
+    
+    const double radiusWidth = 0.02;
+    double drOpt = 0;
 
     // Numerically solve for optimal dl:
-    numberPointsPrim = secantSolvePrimative(x, y, numberPoints, targetPoints, primativeNumber, dl, radii, numRadii, useRaster, params);
-   
+    numberPointsPrim = secantSolvePrimative(x, y, numberPoints, targetPoints, primativeNumber, radiusWidth, drOpt, useRaster, params);
+
+    printf("Optimal dr = %0.5f\n", drOpt);
+    // printf("Recomputing grid\n");
+    numberPointsPrim = secantSolvePrimative(x, y, numberPoints, targetPoints, primativeNumber, drOpt, drOpt, useRaster, params);
     
+    printf("Tiling primitives\n");
     tileAndReconcile(x, y, numberPoints, numberPointsPrim, numTiles, tileAngleSep, tileAngleOffset);
 
     
@@ -373,7 +379,7 @@ int main(int argc, char** argv)
         printf("No input parameters, setting default params \n");
         
         numberPoints    = 10000;
-        patternNumber   = 8;
+        patternNumber   = 7;
         param0       = 0.2;
         param1       = 0.3;
         param2       = 0;
