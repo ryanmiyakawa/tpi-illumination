@@ -201,7 +201,8 @@ void tileAndReconcile(double * x, double * y, int numberPoints,
     // Reconcile count:
     int pointDifference = 0;
     if (count < numberPoints){
-        // Need to add extra points
+
+        // Need to add extra points to match total with desired number points
         pointDifference = numberPoints - count;
 
         for (int m = numberPoints - pointDifference; m < numberPoints; m++){
@@ -215,6 +216,7 @@ void tileAndReconcile(double * x, double * y, int numberPoints,
     }
 }
 
+// Generates illumination coordinates by building pupil fills from primative shapes that are subsequently tiled and offset/rotated
 void getIlluminationCoordinates(double * x, double * y, int numberPoints, int patternNumber, double * params){
 
     const double radiusWidth = 0.02;
@@ -237,8 +239,6 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
 
     // Estimate dl
     double dl = M_PI/ (numberPoints * radiusWidth) * 10;
-
-
 
     switch(patternNumber){
         case 0: // Circular monopole
@@ -358,7 +358,7 @@ int main(int argc, char** argv)
         param3       = 0;
         param4       = 0;
 
-        // Define some defaults for each pattern number
+        // Define some defaults for each pattern number for testing purposes only
         switch(patternNumber){
             case 0: // Offset monopole:
                 param0 = 0.4;
