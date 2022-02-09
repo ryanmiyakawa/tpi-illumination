@@ -130,17 +130,19 @@ int generatePrimative(double * x, double * y, double * xBuff, double * yBuff, in
         y[k] = yBuff[k];
     }
 
-    return count;
+    return count - targetPoints;
 }
 
 
 // Discretized Newton's method for finding optimal theta sampling
-double secantSolvePrimative(double * x, double * y, int numberPoints, int targetPoints, int primativeIdx, double dlGuess, double * radii, int numRadii, bool useRaster, double * params){
+int secantSolvePrimative(double * x, double * y, int numberPoints, int targetPoints, 
+            int primativeIdx, double dlGuess, double * radii, int numRadii, bool useRaster, double * params){
+
     double tolX = 0.001;
     int maxIter = 50;
     
     //Make guesses:
-    double x1, x2, fxm1, fxm2, R0;
+    double x1, x2, fxm1, fxm2, R0, S0;
 
     double xBuff[numberPoints*3];
     double yBuff[numberPoints*3];
@@ -148,18 +150,32 @@ double secantSolvePrimative(double * x, double * y, int numberPoints, int target
     x1 = dlGuess;
     x2 = x1*1.2;
     for (int currentIter = 0; currentIter < maxIter; currentIter++){
-        fxm1 = generatePrimative(x, y, xBuff, yBuff, numberPoints, targetPoints, primativeIdx, x1, radii, numRadii, useRaster, params);
-        fxm2 = generatePrimative(x, y, xBuff, yBuff, numberPoints, targetPoints, primativeIdx, x2, radii, numRadii, useRaster, params);
+        fxm1 = (double) generatePrimative(x, y, xBuff, yBuff, numberPoints, targetPoints, primativeIdx, x1, radii, numRadii, useRaster, params);
+        fxm2 = (double) generatePrimative(x, y, xBuff, yBuff, numberPoints, targetPoints, primativeIdx, x2, radii, numRadii, useRaster, params);
 
-        R0 = x1 - fxm1*(x1 - x2) / (fxm1 - fxm2);
-        if (abs(R0 - x1) < tolX){
-            printf("Secant solve converged\n");
-            return R0;
+        if (fxm1 != fxm2){
+            R0 = x1 - fxm1*(x1 - x2) / (fxm1 - fxm2);
+            S0 = 1/x1 - fxm1*(1/x1 - 1/x2)/(fxm1 - fxm2);       
+        } else {
+            // Force convergence:
+            S0 = 1/x1;
+        }
+
+        if (abs(S0 - 1/x1) < tolX){
+            printf("Secant solve converged in %d iterations \n", currentIter);
+            printf("optimal dl = %0.5f\n", 1/x1);
+
+            fxm1 = generatePrimative(x, y, xBuff, yBuff, numberPoints, targetPoints, primativeIdx, x1, radii, numRadii, useRaster, params);
+
+            printf("Number of points in primative: %d\n", ((int) fxm1 ) + targetPoints);
+
+
+            return ((int) fxm1 ) + targetPoints;
         }
     
         //Set new guesses
         x2 = x1;
-        x1 = R0;
+        x1 = 1/S0;
     }
     printf("MAXIMUM ITERATIONS REACHED\n");
     return x1;
@@ -259,7 +275,7 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
 
         break;
         case 2: // Circular Dipole
-            targetPoints    = numberPoints;
+            targetPoints    = numberPoints/2;
             primativeNumber = 2;
             numTiles        = 2;
             tileAngleSep    = M_PI;
@@ -267,7 +283,7 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
 
         break;
         case 3: // Crosspole (wedge dipole)
-            targetPoints    = numberPoints;
+            targetPoints    = numberPoints/2;
             primativeNumber = 1;
             numTiles        = 2;
             tileAngleSep    = M_PI;
@@ -275,7 +291,7 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
 
         break;
         case 4: // Leaf Dipole 
-            targetPoints    = numberPoints;
+            targetPoints    = numberPoints/2;
             primativeNumber = 3;
             numTiles        = 2;
             tileAngleSep    = M_PI;
@@ -283,14 +299,14 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
 
         break;
         case 5: // Circular Quadrupole
-            targetPoints    = numberPoints;
+            targetPoints    = numberPoints/4;
             primativeNumber = 2;
             numTiles        = 4;
             tileAngleSep    = M_PI/2;
             tileAngleOffset = params[2] * M_PI/180;
         break;
         case 6: // Quasar (wedge quadrupole)
-            targetPoints    = numberPoints;
+            targetPoints    = numberPoints/4;
             primativeNumber = 1;
             numTiles        = 4;
             tileAngleSep    = M_PI/2;
@@ -298,28 +314,28 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
 
         break;
         case 7: // Leaf Quasar 
-            targetPoints    = numberPoints;
+            targetPoints    = numberPoints/4;
             primativeNumber = 4;
             numTiles        = 4;
             tileAngleSep    = M_PI/2;
             tileAngleOffset = params[1] * M_PI/180;
         break;
         case 8: // Circular N-pole
-            targetPoints    = numberPoints;
+            targetPoints    = numberPoints/params[3];
             primativeNumber = 2;
             numTiles        = params[3];
             tileAngleSep    = 2*M_PI/params[3];
             tileAngleOffset = params[2] * M_PI/180;
         break;
         case 9: // Wedge N-pole
-            targetPoints    = numberPoints;
+            targetPoints    = numberPoints/params[4];
             primativeNumber = 1;
             numTiles        = params[4];
             tileAngleSep    = 2*M_PI/params[4];
             tileAngleOffset = params[2] * M_PI/180;
         break;
         case 10: // Leaf Hexapole
-            targetPoints    = numberPoints;
+            targetPoints    = numberPoints/6;
             primativeNumber = 5;
             numTiles        = 6;
             tileAngleSep    = M_PI/3;
@@ -327,7 +343,13 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
         break;
     }
 
-    numberPointsPrim = generatePrimative(x, y, x, y, numberPoints, targetPoints, primativeNumber, dl, radii, numRadii, useRaster, params );
+    // Generate primative without optimizing dl
+    //  numberPointsPrim = generatePrimative(x, y, x, y, numberPoints, targetPoints, primativeNumber, dl, 
+    //                                                         radii, numRadii, useRaster, params );
+
+    // Numerically solve for optimal dl:
+    numberPointsPrim = secantSolvePrimative(x, y, numberPoints, targetPoints, primativeNumber, dl, radii, numRadii, useRaster, params);
+   
     
     tileAndReconcile(x, y, numberPoints, numberPointsPrim, numTiles, tileAngleSep, tileAngleOffset);
 
@@ -351,9 +373,9 @@ int main(int argc, char** argv)
         printf("No input parameters, setting default params \n");
         
         numberPoints    = 10000;
-        patternNumber   = 10;
+        patternNumber   = 8;
         param0       = 0.2;
-        param1       = 0.8;
+        param1       = 0.3;
         param2       = 0;
         param3       = 0;
         param4       = 0;
@@ -366,7 +388,7 @@ int main(int argc, char** argv)
                 break;
             case 1:
                 param0 = 0.3;
-                param1 = 0.8;
+                param1 = 0.9;
                 break;
             case 2:
                 param0 = 0.8;
