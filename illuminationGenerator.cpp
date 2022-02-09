@@ -3,6 +3,15 @@
  * Ryan Miyakawa
  * rhmiyakawa@lbl.gov
  * 
+ * Generates coordinates describing illumination patterns for TPI. Documentation 
+ * on the pattern definitions and parameters can be found here:
+ * https://cxro.atlassian.net/l/c/x0PcjVrA
+ * 
+ * Builds illuminations using primative shapes, and then uses a discretized
+ * Newton's method (secant solver) to make sure that returned coordiante array
+ * lengths match the desired number (default 10,000 points).
+ * 
+ * Illumination coordinates are written to a text file.
  */
 
 
@@ -33,8 +42,10 @@ void writeCoords(double * x, double * y, int numCoords){
     }
 }
 
-// Specify custom boolean masks for "primative" shapes.  
-// All pupil fills are designed be composed of primative shapes
+/* 
+ * Specify custom boolean masks for "primative" shapes.  All illumination profiles
+ * can be built from these primative shapes.  
+*/
 bool isInPrimativeShape(double r, double th, int primativeIdx, double * args){
     double sigmaLow, sigmaHigh, wedgeWidth, poleOffset, poleRadius, deltaSigma;
     switch (primativeIdx){
@@ -82,14 +93,11 @@ bool isInPrimativeShape(double r, double th, int primativeIdx, double * args){
     return true;
 }
 
-
-
 /**
- * Populates x and y with coordinates of the primative shape given by primativeIdx
- * 
+ * Objective function to be used by secant solver.
+ * Populates x and y with coordinates of the primative shape given by primativeIdx.
  * xBuff and yBuff are helper arrays for storing coordinates and should be larger than x and y
- * 
- * Returns the number of points used to create this primative
+ * Returns the difference between primative points and target points, which is optimally equal to 0.
  */
 int generatePrimative(double * x, double * y, double * xBuff, double * yBuff, int numberPoints, int targetPoints, 
                     int primativeIdx, double dl, double * radii, int numRadii, bool useRaster, double * params){
@@ -106,10 +114,7 @@ int generatePrimative(double * x, double * y, double * xBuff, double * yBuff, in
         dTh = dl/(2*M_PI * radii[k]);
         numTheta = 2*M_PI / dTh;
 
-        // printf("NumTheta in ring %d: %d\n", k, numTheta);
-
         for (int m = 0; m < numTheta; m++){
-
             // Reverse scan direction for odd k:
             if (!useRaster || k % 2 == 0 ){
                 theta = -M_PI + m*dTh;
@@ -134,10 +139,12 @@ int generatePrimative(double * x, double * y, double * xBuff, double * yBuff, in
 }
 
 
-// Discretized Newton's method for finding optimal theta sampling
+/*
+ * Discretized Newton's method for finding optimal theta sampling to make array lengths
+ * equal to the target number of points.  
+ */
 int secantSolvePrimative(double * x, double * y, int numberPoints, int targetPoints, 
             int primativeIdx, double radiusWidth, double &drOpt, bool useRaster, double * params){
-
 
     // Set up R,Th grid:
     int numRadii = (int) ((1 - radiusWidth)/radiusWidth);
@@ -147,14 +154,15 @@ int secantSolvePrimative(double * x, double * y, int numberPoints, int targetPoi
         radii[k] = radiusWidth*(k + 1);
     }
 
+    //Make guess:
     double dlGuess = M_PI/ ((double) numberPoints * radiusWidth) * 10;
 
     double tolX = 0.001;
     int maxIter = 50;
     
-    //Make guesses:
     double x1, x2, fxm1, fxm2, R0, S0;
 
+    // Buffers for holding points that have more space than nominal array
     double xBuff[numberPoints*3];
     double yBuff[numberPoints*3];
 
@@ -164,7 +172,10 @@ int secantSolvePrimative(double * x, double * y, int numberPoints, int targetPoi
         fxm1 = (double) generatePrimative(x, y, xBuff, yBuff, numberPoints, targetPoints, primativeIdx, x1, radii, numRadii, useRaster, params);
         fxm2 = (double) generatePrimative(x, y, xBuff, yBuff, numberPoints, targetPoints, primativeIdx, x2, radii, numRadii, useRaster, params);
 
+        // Early stop condition to avoid div by 0.
         if (fxm1 != fxm2){
+
+            // Optimize on 1/dl rather than dl since objective function is closer to linear in 1/x
             R0 = x1 - fxm1*(x1 - x2) / (fxm1 - fxm2);
             S0 = 1/x1 - fxm1*(1/x1 - 1/x2)/(fxm1 - fxm2);       
         } else {
@@ -176,11 +187,11 @@ int secantSolvePrimative(double * x, double * y, int numberPoints, int targetPoi
             printf("Secant solve converged in %d iterations \n", currentIter);
             printf("optimal dl = %0.5f\n", x1);
 
+            // Repopulate x and y with using optimal dl.
             fxm1 = generatePrimative(x, y, xBuff, yBuff, numberPoints, targetPoints, primativeIdx, x1, radii, numRadii, useRaster, params);
 
             printf("Number of points in primative: %d\n", ((int) fxm1 ) + targetPoints);
-
-            // Set dA:
+            // Pass this value back in case we want to rerun with optimal dr
             drOpt = sqrt(radiusWidth * x1);
 
             return ((int) fxm1 ) + targetPoints;
@@ -190,16 +201,15 @@ int secantSolvePrimative(double * x, double * y, int numberPoints, int targetPoi
         x2 = x1;
         x1 = 1/S0;
     }
-    printf("MAXIMUM ITERATIONS REACHED\n");
+    printf("MAXIMUM ITERATIONS REACHED without convergence\n");
     return x1;
 }
 
 
-
-
-// Makes multiple copies of the primative shape, rotating around the unit circle.
-// Can offset shapes
-// Reconciles total number of points by either adding or removing points
+/*
+ * Used to tile primative shapes into full illumination patterns.  Also
+ * reconciles array length if there are more or less than the desired number of coordinates.
+ */
 void tileAndReconcile(double * x, double * y, int numberPoints, 
         int numberPointsPrim, int numTiles, double tileAngleSep, double tileAngleOffset){
 
@@ -241,14 +251,16 @@ void tileAndReconcile(double * x, double * y, int numberPoints,
 
     } else if (numberPointsPrim > numberPoints){
         // Need to get rid of some points but should never get here 
-
+        printf("WARNING: Primative points exceeds target\n");
     }
 }
 
-// Generates illumination coordinates by building pupil fills from primative shapes that are subsequently tiled and offset/rotated
+/*
+ * Populates the arrays x and y with coordinates as specified by pattern number and
+ * paramters.  See https://cxro.atlassian.net/l/c/x0PcjVrA
+ * for documentation on illuminations and paramters
+ */
 void getIlluminationCoordinates(double * x, double * y, int numberPoints, int patternNumber, double * params){
-
-
 
     int numberPointsPrim = 0;
     int targetPoints;
@@ -359,11 +371,8 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
     
     printf("Tiling primitives\n");
     tileAndReconcile(x, y, numberPoints, numberPointsPrim, numTiles, tileAngleSep, tileAngleOffset);
-
     
 }
-
-
 
 
 int main(int argc, char** argv)
@@ -375,17 +384,19 @@ int main(int argc, char** argv)
     int patternNumber, numberPoints;
     double param0, param1, param2, param3, param4;
 
-    // Get commandline parameters
-    if (argc == 1) {
+
+    // If not all inputs are given, then use default paramters
+    if (argc < 8) {
         printf("No input parameters, setting default params \n");
         
+        // Default parameters
         numberPoints    = 10000;
-        patternNumber   = 10;
-        param0       = 0.2;
-        param1       = 0.3;
-        param2       = 0;
-        param3       = 0;
-        param4       = 0;
+        patternNumber   = 8;
+        param0          = 0.2;
+        param1          = 0.3;
+        param2          = 0;
+        param3          = 0;
+        param4          = 0;
 
         // Define some defaults for each pattern number for testing purposes only
         switch(patternNumber){
@@ -448,30 +459,27 @@ int main(int argc, char** argv)
        
 
     } else {
+
+    // Get commandline parameters
         patternNumber   = atoi(*(argv_test++));
         numberPoints    = atoi(*(argv_test++));
 
-        param0       = atof(*(argv_test++));
-        param1       = atof(*(argv_test++));
-        param2       = atof(*(argv_test++));
-        param3       = atof(*(argv_test++));
-        param4       = atof(*(argv_test++));
+        param0          = atof(*(argv_test++));
+        param1          = atof(*(argv_test++));
+        param2          = atof(*(argv_test++));
+        param3          = atof(*(argv_test++));
+        param4          = atof(*(argv_test++));
     }
 
-
-    
-    
-
-    
     printf("Pattern number \t\t= %d \n", patternNumber);
     printf("numberPoints \t\t %d \n", numberPoints);
     printf("Arguments: \t\t [%0.2f, %0.2f, %0.2f, %0.2f, %0.2f]\n", param0, param1, param2, param3, param4); 
 
+    // Arrays to hold coordinates
     double x[numberPoints];
     double y[numberPoints];
 
     double params[5] = {param0, param1, param2, param3, param4};
-
 
     // Populate arrays x, y with coordinates
     getIlluminationCoordinates(x, y, numberPoints, patternNumber, params);
