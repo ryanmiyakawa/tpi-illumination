@@ -352,9 +352,10 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
     // Numerically solve for optimal dl:
     numberPointsPrim = secantSolvePrimative(x, y, numberPoints, targetPoints, primativeNumber, radiusWidth, drOpt, useRaster, params);
 
+
     printf("Optimal dr = %0.5f\n", drOpt);
     // printf("Recomputing grid\n");
-    numberPointsPrim = secantSolvePrimative(x, y, numberPoints, targetPoints, primativeNumber, drOpt, drOpt, useRaster, params);
+    // numberPointsPrim = secantSolvePrimative(x, y, numberPoints, targetPoints, primativeNumber, drOpt, drOpt, useRaster, params);
     
     printf("Tiling primitives\n");
     tileAndReconcile(x, y, numberPoints, numberPointsPrim, numTiles, tileAngleSep, tileAngleOffset);
@@ -379,7 +380,7 @@ int main(int argc, char** argv)
         printf("No input parameters, setting default params \n");
         
         numberPoints    = 10000;
-        patternNumber   = 7;
+        patternNumber   = 10;
         param0       = 0.2;
         param1       = 0.3;
         param2       = 0;
