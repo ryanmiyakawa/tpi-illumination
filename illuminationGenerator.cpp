@@ -17,7 +17,6 @@
  * Illumination coordinates are written to a text file.
  */
 
-
 #include <stdio.h>
 #include <fstream>
 #include <cmath>
@@ -25,8 +24,6 @@
 #include <string.h>
 
 using namespace std;
-
-
 
 // Squares a number, we do this a lot
 double square(double x){
@@ -135,9 +132,9 @@ int generatePrimative(double * x, double * y, double * xBuff, double * yBuff, in
         y[k] = yBuff[k];
     }
 
+    // Returns the difference between target length and current coordiante array length
     return count - targetPoints;
 }
-
 
 /*
  * Discretized Newton's method for finding optimal theta sampling to make array lengths
@@ -201,10 +198,9 @@ int secantSolvePrimative(double * x, double * y, int numberPoints, int targetPoi
         x2 = x1;
         x1 = 1/S0;
     }
-    printf("MAXIMUM ITERATIONS REACHED without convergence\n");
-    return x1;
+    printf("WARNING: MAXIMUM ITERATIONS REACHED without convergence\n");
+    return ((int) fxm1 ) + targetPoints;
 }
-
 
 /*
  * Used to tile primative shapes into full illumination patterns.  Also
@@ -224,6 +220,7 @@ void tileAndReconcile(double * x, double * y, int numberPoints,
             // Check if we are about to overrun array
             if (k + numberPointsPrim * n > numberPoints){
                 // we have overrun the array
+                printf("WARNING: Coordinate array overrun\n");
                 break;
             }
 
@@ -277,7 +274,6 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
             numTiles        = 1;
             tileAngleSep    = 0;
             tileAngleOffset = params[2] * M_PI/180;
-
         break;
         case 1: // Disk/annulus
             targetPoints    = numberPoints;
@@ -286,7 +282,6 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
             tileAngleSep    = 0;
             tileAngleOffset = M_PI_2;
             useRaster       = false;
-
         break;
         case 2: // Circular Dipole
             targetPoints    = numberPoints/2;
@@ -294,7 +289,6 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
             numTiles        = 2;
             tileAngleSep    = M_PI;
             tileAngleOffset = params[2] * M_PI/180;
-
         break;
         case 3: // Crosspole (wedge dipole)
             targetPoints    = numberPoints/2;
@@ -302,7 +296,6 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
             numTiles        = 2;
             tileAngleSep    = M_PI;
             tileAngleOffset = params[2] * M_PI/180;
-
         break;
         case 4: // Leaf Dipole 
             targetPoints    = numberPoints/2;
@@ -310,7 +303,6 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
             numTiles        = 2;
             tileAngleSep    = M_PI;
             tileAngleOffset = params[1] * M_PI/180;
-
         break;
         case 5: // Circular Quadrupole
             targetPoints    = numberPoints/4;
@@ -325,7 +317,6 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
             numTiles        = 4;
             tileAngleSep    = M_PI/2;
             tileAngleOffset = params[2] * M_PI/180;
-
         break;
         case 7: // Leaf Quasar 
             targetPoints    = numberPoints/4;
@@ -356,7 +347,6 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
             tileAngleOffset = params[1] * M_PI/180;
         break;
     }
-
     
     const double radiusWidth = 0.02;
     double drOpt = 0;
@@ -364,20 +354,17 @@ void getIlluminationCoordinates(double * x, double * y, int numberPoints, int pa
     // Numerically solve for optimal dl:
     numberPointsPrim = secantSolvePrimative(x, y, numberPoints, targetPoints, primativeNumber, radiusWidth, drOpt, useRaster, params);
 
-
     printf("Optimal dr = %0.5f\n", drOpt);
     // printf("Recomputing grid\n");
     // numberPointsPrim = secantSolvePrimative(x, y, numberPoints, targetPoints, primativeNumber, drOpt, drOpt, useRaster, params);
     
     printf("Tiling primitives\n");
     tileAndReconcile(x, y, numberPoints, numberPointsPrim, numTiles, tileAngleSep, tileAngleOffset);
-    
 }
 
 
 int main(int argc, char** argv)
 {
-
     char** argv_test;
     argv_test = argv + 1;
 
