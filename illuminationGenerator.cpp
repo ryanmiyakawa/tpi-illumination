@@ -220,7 +220,9 @@ void tileAndReconcile(double * x, double * y, int numberPoints,
             // Check if we are about to overrun array
             if (k + numberPointsPrim * n > numberPoints){
                 // we have overrun the array
-                printf("WARNING: Coordinate array overrun\n");
+                printf("WARNING: Coordinate array overrun on tile %d \n", n);
+                printf("Primative points: %d, Number of primatives: %d\n", numberPointsPrim, numTiles);
+
                 break;
             }
 
@@ -248,6 +250,7 @@ void tileAndReconcile(double * x, double * y, int numberPoints,
 
     } else if (numberPointsPrim > numberPoints){
         // Need to get rid of some points but should never get here 
+
         printf("WARNING: Primative points exceeds target\n");
     }
 }
