@@ -49,11 +49,14 @@ void writeCoords(double * x, double * y, int numCoords){
  */
 void getFSCoordinates(double * x, double * y, int numberPoints, int patternNumber, double * params){
 
+    double dummy[5] = {0, 0, 0, 0, 0};
     double a = params[0];
     double b = params[1];   
-    double rotation = 0;  
+    double rotation = 0; 
+    double lineSpacing, spaceCorrection;
 
     int numLines, numberSubpoints, lineStart, lineEnd;
+    int offsetByNumPoints = 0, offset = 0;
     double P, th, alpha, beta, N, phi, t;
 
     double * xr;
@@ -89,56 +92,111 @@ void getFSCoordinates(double * x, double * y, int numberPoints, int patternNumbe
         break;
         case 2: // Raster
 
+            /**
+             * @brief 03/14/23 - Updated raster to interlace lines on the half-integer line so that start and
+             * end points are in proximity.  Also added the ability to cascade rasters to make the 2D raster
+             * out of 2 X 1D rasters.  This is done by passing in a 5th parameter to the function. 
+             */
+
             rotation = params[3];
             numLines = (int) params[2];
+
+            // If params[4] == 1, then we are rastering the second half of the raster, so offset the array indices
+            offsetByNumPoints = (int) params[4];
+            if (offsetByNumPoints == 1){
+                offset = numberPoints;
+            }
 
             // Require rasters to have at least 2 lines to avoid divide by 0
             if (numLines <= 1){
                 numLines = 2;
             }
 
+            numberSubpoints = numberPoints/2;
+
+            spaceCorrection =  ((double)numLines - 1)/((double)numLines - 0.5);
+            lineSpacing = 2*b/((double)numLines - 1) * spaceCorrection;
+           
             for (int k = 0; k < numLines; k++){
-                lineStart = (int) ((k * numberPoints)/numLines);
-                lineEnd = (int) (((k + 1) * numberPoints)/numLines);
+                lineStart = (int) ((k * numberSubpoints)/numLines); 
+                lineEnd = (int) (((k + 1) * numberSubpoints)/numLines);
 
                 for (int m = lineStart; m < lineEnd; m++){
-                    x[m] = ( 2*(k % 2) - 1) * (-a + (2*a/(lineEnd - lineStart)) * (m - lineStart));
-                    y[m] = -b + (2*b/(numLines - 1)) * k;
+                    x[m + offset] = ( 2*(k % 2) - 1) * (-a + (2*a/(lineEnd - lineStart)) * (m - lineStart));
+                    if (!offsetByNumPoints){
+                        // Reverse order of y coordinates
+                        y[m + offset] = -b + lineSpacing * (numLines - k - 1);
+                    } else {
+                        y[m + offset] = -b + lineSpacing * k;
+                    }
+                }
+            }
+
+            // Now raster backward filling in the other half of the raster
+            for (int k = numLines - 1; k >= 0; k--){
+                lineStart = (int) ((k * numberSubpoints)/numLines);
+                lineEnd = (int) (((k + 1) * numberSubpoints)/numLines);
+
+                for (int m = lineStart; m < lineEnd; m++){
+                    x[numberPoints - m - 1 + offset] = ( 2*(k % 2) - 1) * (-a + (2*a/(lineEnd - lineStart)) * (m - lineStart));
+
+                     if (!offsetByNumPoints){
+                        y[numberPoints - m - 1 + offset] = -b + lineSpacing * (numLines - k - 1)+ lineSpacing/2; // add a half line
+                     }else {
+                        y[numberPoints - m - 1 + offset] = -b + lineSpacing * k + lineSpacing/2; // add a half line
+                     }
                 }
             }
 
 
         break;
+
         case 3: // Interlaced raster
 
-            rotation = params[3];
-            numberSubpoints = numberPoints/2;
-            numLines = (int) params[2];
+            // 3/14/23 - Now making 2D interlaced raster from 2 X 1D rasters
+            params[4] = 0;
+            getFSCoordinates(x, y, numberPoints/2, 2, params);
 
-            // Require rasters to have at least 2 lines to avoid divide by 0
-            if (numLines <= 1){
-                numLines = 2;
-            }
+            // Swap params 0 and 1 to make the second raster
+            params[4] = params[0];
+            params[0] = params[1];
+            params[1] = params[4];
 
-            for (int k = 0; k < numLines; k++){
-                int lineStart = (int) ((k * numberSubpoints)/numLines);
-                int lineEnd = (int) (((k + 1) * numberSubpoints)/numLines);
+            // Flag that we are now rastering the second half of the raster
+            params[4] = 1;
+            params[3] += 90;
 
-                for (int m = lineStart; m < lineEnd; m++){
-                    x[m] = ( 2*(k % 2) - 1) * (-a + (2*a/(lineEnd - lineStart)) * (m - lineStart));
-                    y[m] = -b + (2*b/(numLines - 1)) * k;
-                }
-            }
+            getFSCoordinates(x, y, numberPoints/2, 2, params);
+            return;
 
-             for (int k = numLines; k < 2*numLines; k++){
-                int lineStart = (int) ((k * numberSubpoints)/numLines);
-                int lineEnd = (int) (((k + 1) * numberSubpoints)/numLines);
+            // rotation = params[3];
+            // numberSubpoints = numberPoints/2;
+            // numLines = (int) params[2];
 
-                for (int m = lineStart; m < lineEnd; m++){
-                    y[m] = ( 2*(k % 2) - 1) * (-b + (2*b/(lineEnd - lineStart)) * (m - lineStart));
-                    x[m] = -3*a + (2*a/(numLines - 1)) * (k - 1);
-                }
-            }
+            // // Require rasters to have at least 2 lines to avoid divide by 0
+            // if (numLines <= 1){
+            //     numLines = 2;
+            // }
+
+            // for (int k = 0; k < numLines; k++){
+            //     int lineStart = (int) ((k * numberSubpoints)/numLines);
+            //     int lineEnd = (int) (((k + 1) * numberSubpoints)/numLines);
+
+            //     for (int m = lineStart; m < lineEnd; m++){
+            //         x[m] = ( 2*(k % 2) - 1) * (-a + (2*a/(lineEnd - lineStart)) * (m - lineStart));
+            //         y[m] = -b + (2*b/(numLines - 1)) * k;
+            //     }
+            // }
+
+            //  for (int k = numLines; k < 2*numLines; k++){
+            //     int lineStart = (int) ((k * numberSubpoints)/numLines);
+            //     int lineEnd = (int) (((k + 1) * numberSubpoints)/numLines);
+
+            //     for (int m = lineStart; m < lineEnd; m++){
+            //         y[m] = ( 2*(k % 2) - 1) * (-b + (2*b/(lineEnd - lineStart)) * (m - lineStart));
+            //         x[m] = -3*a + (2*a/(numLines - 1)) * (k - 1);
+            //     }
+            // }
 
         break;
         case 4: // Lissajous?
@@ -161,11 +219,21 @@ void getFSCoordinates(double * x, double * y, int numberPoints, int patternNumbe
     if (rotation != 0){
         th = rotation * M_PI/180; // rotation in radians
 
-        for (int k = 0; k < numberPoints; k++){
-            RX = cos(th) * x[k] - sin(th) * y[k];
-            RY = sin(th) * x[k] + cos(th) * y[k];
-            x[k] = RX;
-            y[k] = RY;
+
+        if (offsetByNumPoints){
+            for (int k = numberPoints; k < 2*numberPoints; k++){
+                RX = cos(th) * x[k] - sin(th) * y[k];
+                RY = sin(th) * x[k] + cos(th) * y[k];
+                x[k] = RX;
+                y[k] = RY;
+            }
+        } else {
+            for (int k = 0; k < numberPoints; k++){
+                RX = cos(th) * x[k] - sin(th) * y[k];
+                RY = sin(th) * x[k] + cos(th) * y[k];
+                x[k] = RX;
+                y[k] = RY;
+            }\
         }
 
     }
@@ -187,8 +255,8 @@ int main(int argc, char** argv)
         printf("No input parameters, setting default params \n");
         
         // Default parameters
-        numberPoints    = 2000;
-        patternNumber   = 4;
+        numberPoints    = 2500;
+        patternNumber   = 3;
 
         // Define some defaults for each pattern number for testing purposes only
         switch(patternNumber){
@@ -207,13 +275,15 @@ int main(int argc, char** argv)
             case 2: // Raster
                 param0 = 0.5;
                 param1 = 0.5;
-                param2 = 10;
+                param2 = 4;
                 param3 = 0;
+                param4 = 1;
                 break;
             case 3: // Interlaced raster
                 param0 = 0.6;
                 param1 = 0.4;
                 param2 = 10;
+                param2 = 5;
                 param3 = 30;
                 break;
             case 4: // Lissajous
@@ -222,6 +292,12 @@ int main(int argc, char** argv)
                 param2 = 6;
                 param3 = 8;
                 param4 = 22.5;
+                break;
+            case 5: // 2draster
+                param0 = 0.5;
+                param1 = 0.5;
+                param2 = 10;
+                param3 = 0;
                 break;
         }
 
